@@ -1,11 +1,15 @@
-# MCPHub 参数类型补丁的 Compose 覆盖层。
+# MCPHub 补丁 Compose 覆盖层
 #
-# 这个文件不是完整的 docker-compose.yml，不能单独执行；必须与原始
-# compose 文件一起使用。它只覆盖 mcphub 的 image 字段，其余配置从
-# 原始 compose 继承。
+# 重要：这个文件不是完整的 docker-compose.yml，不能单独执行。
+# 它必须和服务器上原来的 compose 文件一起使用，后出现的本文件只覆盖
+# services.mcphub.image，其余配置继续从原 compose 继承。
 #
-# 推荐使用同目录的 build-and-run.sh，它会自动构建镜像并合并启动。
-# 手动使用时必须设置 MCPHUB_PATCH_IMAGE，例如：
+# 推荐用法：使用同目录的 build-and-run.sh，它会自动构建镜像、合并配置并启动：
+#
+#   cd /path/to/mcphub-mcp-argument-coercion-patch
+#   MCPHUB_SOURCE_DIR=/path/to/mcphub ./build-and-run.sh
+#
+# 如果镜像已经构建好，只想手动启动：
 #
 #   MCPHUB_PATCH_IMAGE=mcphub:patched-20260710 \
 #   docker compose \
@@ -13,9 +17,37 @@
 #     -f /path/to/mcphub-mcp-argument-coercion-patch/docker-compose.patch.yml \
 #     up -d mcphub
 #
-# ${VAR:?message} 会在变量为空时直接报错，防止误启动错误镜像。
-# 本覆盖层不会修改原始 compose、.env、端口、挂载、网络、restart 策略
-# 或 PostgreSQL 服务。
+# MCPHUB_PATCH_IMAGE 是必须的环境变量。`${VAR:?message}` 语法会在变量为空
+# 时直接报错，避免误启动成空镜像或错误镜像。
+#
+# 常用操作（推荐执行 build-and-run.sh）：
+#
+#   # 构建并启动，自动生成时间戳镜像标签
+#   ./build-and-run.sh
+#
+#   # 使用固定标签构建并启动
+#   MCPHUB_PATCH_IMAGE=mcphub:patched-20260710 \
+#   ./build-and-run.sh
+#
+#   # 只构建，不重启容器
+#   MCPHUB_PATCH_IMAGE=mcphub:patched-20260710 \
+#   ./build-and-run.sh --build
+#
+#   # 回滚：停止使用本覆盖层，恢复原 compose 中定义的官方镜像
+#   ./build-and-run.sh --rollback
+#
+# 本覆盖层不会修改原 compose 或 .env，也不会覆盖原 compose 中的：
+# - environment / .env 环境变量
+# - ports 端口映射
+# - volumes 数据和配置挂载
+# - networks 网络
+# - restart 重启策略
+# - mcphub-postgres 服务
+#
+# 因此补丁容器仍然使用原来的 mcp_settings.json、data 目录、数据库和反代配置。
+# 只要保留原 compose 和 .env，就可以通过 --rollback 恢复官方版本。
+#
+# MCPHUB_PATCH_IMAGE 由构建脚本注入；不要把具体镜像标签写死在本文件中。
 
 services:
   mcphub:
