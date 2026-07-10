@@ -10,7 +10,7 @@
 #   MCPHUB_PATCH_IMAGE=mcphub:patched-20260710 \
 #   docker compose \
 #     -f /opt/mcphub/docker-compose.yml \
-#     -f patches/mcp-argument-coercion/docker-compose.patch.yml \
+#     -f /path/to/mcphub-mcp-argument-coercion-patch/docker-compose.patch.yml \
 #     up -d mcphub
 #
 # ${VAR:?message} 会在变量为空时直接报错，防止误启动错误镜像。

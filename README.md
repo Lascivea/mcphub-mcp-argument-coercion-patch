@@ -24,17 +24,24 @@ mcp-argument-coercion/
 
 ## 使用
 
-本目录位于 MCPHub 源码仓库的 `patches/` 下。补丁文件描述源码改动，构建脚本直接使用当前仓库源码构建镜像。
+这是一个独立补丁仓库，不包含 MCPHub 主项目源码。补丁文件描述源码改动，构建脚本通过 `MCPHUB_SOURCE_DIR` 使用 MCPHub 源码构建镜像。
 
-如果源码还没有这些改动：
+先准备 MCPHub 源码：
 
 ```bash
-git apply patches/mcp-argument-coercion/0001-mcp-argument-coercion.patch
+git clone https://github.com/samanhappy/mcphub.git
+cd mcphub
+```
+
+如果源码还没有这些改动，在 MCPHub 源码目录执行：
+
+```bash
+git apply /path/to/mcphub-mcp-argument-coercion-patch/0001-mcp-argument-coercion.patch
 ```
 
 脚本默认使用：
 
-- 源码仓库：当前 MCPHub 仓库
+- 源码仓库：由 `MCPHUB_SOURCE_DIR` 指定
 - 部署目录：`/opt/mcphub`
 - 原始 Compose：`/opt/mcphub/docker-compose.yml`
 - Docker 平台：`linux/amd64`
@@ -42,26 +49,30 @@ git apply patches/mcp-argument-coercion/0001-mcp-argument-coercion.patch
 构建并启动：
 
 ```bash
-cd patches/mcp-argument-coercion
+cd /path/to/mcphub-mcp-argument-coercion-patch
+MCPHUB_SOURCE_DIR=/path/to/mcphub \
 ./build-and-run.sh
 ```
 
 固定镜像标签：
 
 ```bash
-MCPHUB_PATCH_IMAGE=mcphub:patched-20260710 ./build-and-run.sh
+MCPHUB_SOURCE_DIR=/path/to/mcphub \
+MCPHUB_PATCH_IMAGE=mcphub:patched-20260710 \
+./build-and-run.sh
 ```
 
 只构建镜像、不重启容器：
 
 ```bash
-./build-and-run.sh --build
+MCPHUB_SOURCE_DIR=/path/to/mcphub ./build-and-run.sh --build
 ```
 
 自定义部署目录或平台：
 
 ```bash
 MCPHUB_DEPLOY_DIR=/srv/mcphub \
+MCPHUB_SOURCE_DIR=/path/to/mcphub \
 DOCKER_PLATFORM=linux/arm64 \
 ./build-and-run.sh
 ```
@@ -84,7 +95,7 @@ DOCKER_PLATFORM=linux/arm64 \
 MCPHUB_PATCH_IMAGE=mcphub:patched-20260710 \
 docker compose \
   -f /opt/mcphub/docker-compose.yml \
-  -f patches/mcp-argument-coercion/docker-compose.patch.yml \
+  -f /path/to/mcphub-mcp-argument-coercion-patch/docker-compose.patch.yml \
   up -d mcphub
 ```
 
@@ -93,7 +104,7 @@ docker compose \
 ## 验证
 
 ```bash
-bash -n patches/mcp-argument-coercion/build-and-run.sh
+bash -n build-and-run.sh
 git diff --check
 ```
 

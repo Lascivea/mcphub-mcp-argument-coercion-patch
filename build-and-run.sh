@@ -5,7 +5,9 @@
 set -Eeuo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-REPO_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
+# 独立仓库模式：通过 MCPHUB_SOURCE_DIR 指向 MCPHub 源码目录。
+# 嵌入 MCPHub 源码的 patches/mcp-argument-coercion 目录时，自动回退到源码根目录。
+REPO_ROOT="${MCPHUB_SOURCE_DIR:-$(cd "$SCRIPT_DIR/../.." && pwd)}"
 PATCH_COMPOSE="$SCRIPT_DIR/docker-compose.patch.yml"
 DEPLOY_DIR="${MCPHUB_DEPLOY_DIR:-/opt/mcphub}"
 BASE_COMPOSE="$DEPLOY_DIR/docker-compose.yml"
@@ -21,6 +23,7 @@ usage() {
 
 环境变量：
   MCPHUB_DEPLOY_DIR=/opt/mcphub
+  MCPHUB_SOURCE_DIR=/path/to/mcphub
   MCPHUB_PATCH_IMAGE=mcphub:patched-20260710
   DOCKER_PLATFORM=linux/amd64
 EOF
@@ -41,6 +44,7 @@ esac
 
 [[ -f "$BASE_COMPOSE" ]] || { echo "找不到原始 compose：$BASE_COMPOSE" >&2; exit 1; }
 [[ -f "$PATCH_COMPOSE" ]] || { echo "找不到补丁 compose：$PATCH_COMPOSE" >&2; exit 1; }
+[[ -f "$REPO_ROOT/Dockerfile" ]] || { echo "找不到 MCPHub Dockerfile：$REPO_ROOT/Dockerfile，请设置 MCPHUB_SOURCE_DIR" >&2; exit 1; }
 
 echo "构建补丁镜像：$IMAGE_TAG"
 docker build --platform "$PLATFORM" --tag "$IMAGE_TAG" "$REPO_ROOT"
