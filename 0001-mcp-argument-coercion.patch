@@ -1,0 +1,129 @@
+diff --git a/src/services/mcpService.ts b/src/services/mcpService.ts
+index 5b04b74..5f79cc2 100644
+--- a/src/services/mcpService.ts
++++ b/src/services/mcpService.ts
+@@ -36,6 +36,7 @@ import {
+   IGroupServerConfig,
+ } from '../types/index.js';
+ import { expandEnvVars, replaceEnvVars, getNameSeparator } from '../config/index.js';
++import { convertParametersToTypes } from '../utils/parameterConversion.js';
+ import config from '../config/index.js';
+ import { getGroup } from './sseService.js';
+ import { getServerConfigInGroup, normalizeGroupServers } from './groupService.js';
+@@ -2514,4 +2515,7 @@ export const handleCallToolRequest = async (request: any, extra: any) => {
+         const openApiClient = targetServerInfo.openApiClient;
+ 
+         // Use toolArgs if it has properties, otherwise fallback to request.params.arguments
+-        const finalArgs = toolArgs && typeof toolArgs === 'object' ? toolArgs : {};
++        const finalArgs = convertParametersToTypes(
++          toolArgs && typeof toolArgs === 'object' ? toolArgs : {},
++          tool.inputSchema || {},
++        );
+@@ -2606,4 +2610,7 @@ export const handleCallToolRequest = async (request: any, extra: any) => {
+       }
+ 
+       // Use toolArgs if it has properties, otherwise fallback to request.params.arguments
+-      const finalArgs = toolArgs && typeof toolArgs === 'object' ? toolArgs : {};
++      const finalArgs = convertParametersToTypes(
++        toolArgs && typeof toolArgs === 'object' ? toolArgs : {},
++        tool.inputSchema || {},
++      );
+@@ -2722,6 +2729,9 @@ export const handleCallToolRequest = async (request: any, extra: any) => {
+         }
+       }
+ 
+-      const finalArgs = request.params.arguments || {};
++      const finalArgs = convertParametersToTypes(
++        request.params.arguments || {},
++        tool.inputSchema || {},
++      );
+       await reserveHostedIfNeeded(serverInfo.name, cleanToolName);
+       const result = await openApiClient.callTool(cleanToolName, finalArgs, passthroughHeaders);
+@@ -2778,7 +2788,11 @@ export const handleCallToolRequest = async (request: any, extra: any) => {
+ 
+     const cleanToolName = normalizeToolNameForServer(serverInfo.name, routeToolName);
+     await reserveHostedIfNeeded(serverInfo.name, cleanToolName);
++    const finalArgs = convertParametersToTypes(
++      request.params.arguments || {},
++      tool.inputSchema || {},
++    );
+     const result = await callToolWithReconnect(
+       serverInfo,
+-      { ...request.params, name: cleanToolName },
++      { ...request.params, name: cleanToolName, arguments: finalArgs },
+       serverInfo.options || {},
+     );
+diff --git a/src/utils/parameterConversion.ts b/src/utils/parameterConversion.ts
+index 785f670..2840f8b 100644
+--- a/src/utils/parameterConversion.ts
++++ b/src/utils/parameterConversion.ts
+@@ -30,7 +30,9 @@ export function convertParametersToTypes(
+       continue;
+     }
+ 
+-    const propType = propDef.type;
++    const propType = Array.isArray(propDef.type)
++      ? propDef.type.find((type: any) => type !== 'null')
++      : propDef.type;
+ 
+     try {
+       switch (propType) {
+@@ -38,8 +40,14 @@ export function convertParametersToTypes(
+         case 'number':
+           // Convert string to number
+           if (typeof value === 'string') {
+-            const numValue = propType === 'integer' ? parseInt(value, 10) : parseFloat(value);
+-            convertedParams[key] = isNaN(numValue) ? value : numValue;
++            const trimmedValue = value.trim();
++            const numValue = Number(trimmedValue);
++            convertedParams[key] =
++              trimmedValue !== '' &&
++              Number.isFinite(numValue) &&
++              (propType !== 'integer' || Number.isInteger(numValue))
++                ? numValue
++                : value;
+           } else {
+             convertedParams[key] = value;
+           }
+@@ -48,7 +56,14 @@ export function convertParametersToTypes(
+         case 'boolean':
+           // Convert string to boolean
+           if (typeof value === 'string') {
+-            convertedParams[key] = value.toLowerCase() === 'true' || value === '1';
++            const normalizedValue = value.trim().toLowerCase();
++            if (normalizedValue === 'true' || normalizedValue === '1') {
++              convertedParams[key] = true;
++            } else if (normalizedValue === 'false' || normalizedValue === '0') {
++              convertedParams[key] = false;
++            } else {
++              convertedParams[key] = value;
++            }
+           } else {
+             convertedParams[key] = value;
+           }
+diff --git a/tests/controllers/openApiController.test.ts b/tests/controllers/openApiController.test.ts
+index f649722..52ced13 100644
+--- a/tests/controllers/openApiController.test.ts
++++ b/tests/controllers/openApiController.test.ts
+@@ -155,4 +155,21 @@ describe('OpenAPI Controller - Parameter Type Conversion Integration', () => {
+       price: 'invalid'        // Should remain as string when conversion fails
+     });
+   });
++
++  test('should preserve invalid integer and boolean values', () => {
++    const params = {
++      limit: '8.5',
++      enabled: 'maybe'
++    };
++
++    const inputSchema = {
++      type: 'object',
++      properties: {
++        limit: { type: 'integer' },
++        enabled: { type: 'boolean' }
++      }
++    };
++
++    expect(convertParametersToTypes(params, inputSchema)).toEqual(params);
++  });
+ });

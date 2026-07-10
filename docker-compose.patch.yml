@@ -1,0 +1,22 @@
+# MCPHub 参数类型补丁的 Compose 覆盖层。
+#
+# 这个文件不是完整的 docker-compose.yml，不能单独执行；必须与原始
+# compose 文件一起使用。它只覆盖 mcphub 的 image 字段，其余配置从
+# 原始 compose 继承。
+#
+# 推荐使用同目录的 build-and-run.sh，它会自动构建镜像并合并启动。
+# 手动使用时必须设置 MCPHUB_PATCH_IMAGE，例如：
+#
+#   MCPHUB_PATCH_IMAGE=mcphub:patched-20260710 \
+#   docker compose \
+#     -f /opt/mcphub/docker-compose.yml \
+#     -f patches/mcp-argument-coercion/docker-compose.patch.yml \
+#     up -d mcphub
+#
+# ${VAR:?message} 会在变量为空时直接报错，防止误启动错误镜像。
+# 本覆盖层不会修改原始 compose、.env、端口、挂载、网络、restart 策略
+# 或 PostgreSQL 服务。
+
+services:
+  mcphub:
+    image: ${MCPHUB_PATCH_IMAGE:?MCPHUB_PATCH_IMAGE must be set}
