@@ -1,8 +1,10 @@
 # MCPHub MCP 参数类型补丁
 
-这个补丁解决 Agent 调用 MCP 工具时，把数字或布尔值传成字符串的问题。例如 `{"max_results":"8"}` 会被转换为 `{"max_results":8}`，避免严格类型校验的 MCP 服务报错。
+这个仓库提供两个可选的 MCPHub 补丁，可以单独或一起使用。
 
-## 功能
+## 1. MCP 参数类型补丁（`0001-mcp-argument-coercion.patch`）
+
+解决 Agent 调用 MCP 工具时，把数字或布尔值传成字符串的问题。例如 `{"max_results":"8"}` 会被转换为 `{"max_results":8}`，避免严格类型校验的 MCP 服务报错。
 
 - 根据工具 `inputSchema` 转换数字和布尔参数
 - `"8"` → `8`，`"3.5"` → `3.5`
@@ -12,12 +14,22 @@
 - 覆盖 `$smart` 和普通 `/mcp/<group>` 路由
 - 覆盖普通 MCP server 和 OpenAPI server
 
+## 2. Smart Routing 工具描述补充补丁（`0002-smart-routing-extra-hint.patch`）
+
+在 Smart Routing 设置中增加一个**补充说明文字**字段。填写后，这段文字会追加在 `search_tools` 和 `call_tool` 的默认描述后面，不会替换默认描述。留空时保持原有行为不变。
+
+- 后台设置项：`systemConfig.smartRouting.extraToolHint`
+- 同时影响 `search_tools` 和 `call_tool` 的描述
+- 支持 `$smart` 和 `$smart/<group>` 路由
+- 通过仪表盘或 `mcp_settings.json` 持久化
+
 ## 文件
 
 ```text
-mcp-argument-coercion/
+mcphub-mcp-argument-coercion-patch/
 ├── README.md
 ├── 0001-mcp-argument-coercion.patch
+├── 0002-smart-routing-extra-hint.patch
 ├── docker-compose.patch.yml
 └── build-and-run.sh
 ```
@@ -33,10 +45,14 @@ git clone https://github.com/samanhappy/mcphub.git
 cd mcphub
 ```
 
-如果源码还没有这些改动，在 MCPHub 源码目录执行：
+如果源码还没有这些改动，在 MCPHub 源码目录按需应用补丁（可以只应用一个，也可以两个都应用）：
 
 ```bash
+# 参数类型补丁
 git apply /path/to/mcphub-mcp-argument-coercion-patch/0001-mcp-argument-coercion.patch
+
+# Smart Routing 描述补充补丁
+git apply /path/to/mcphub-mcp-argument-coercion-patch/0002-smart-routing-extra-hint.patch
 ```
 
 脚本默认使用：
@@ -117,4 +133,5 @@ pnpm test
 
 ## 设计边界
 
-补丁只修复 MCPHub 转发层的参数类型，不改变 Agent 工具选择、`$smart` 检索阈值、分组逻辑或 MCP server 配置。它不会把任意字符串猜成数字或布尔值，以避免破坏本来就应该是字符串的参数。
+- `0001-mcp-argument-coercion.patch` 只修复 MCPHub 转发层的参数类型，不改变 Agent 工具选择、`$smart` 检索阈值、分组逻辑或 MCP server 配置。它不会把任意字符串猜成数字或布尔值，以避免破坏本来就应该是字符串的参数。
+- `0002-smart-routing-extra-hint.patch` 只追加 Meta-tool 描述文本，不修改 Smart Routing 检索逻辑、阈值、分组或工具调用行为。

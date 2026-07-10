@@ -1,0 +1,397 @@
+diff --git a/frontend/src/contexts/SettingsContext.tsx b/frontend/src/contexts/SettingsContext.tsx
+index c518f6d..742ad48 100644
+--- a/frontend/src/contexts/SettingsContext.tsx
++++ b/frontend/src/contexts/SettingsContext.tsx
+@@ -45,6 +45,7 @@ interface SmartRoutingConfig {
+   azureOpenaiEmbeddingModel?: string;
+   progressiveDisclosure: boolean;
+   embeddingMaxTokens?: number;
++  extraToolHint?: string;
+ }
+ 
+ type ToolResultCompressionStrategy = 'auto' | 'json' | 'log' | 'search' | 'diff' | 'text';
+@@ -357,6 +358,7 @@ export const SettingsProvider: React.FC<SettingsProviderProps> = ({ children })
+     azureOpenaiEmbeddingModel: '',
+     progressiveDisclosure: false,
+     embeddingMaxTokens: undefined,
++    extraToolHint: '',
+   });
+ 
+   const [toolResultCompressionConfig, setToolResultCompressionConfig] =
+@@ -450,6 +452,7 @@ export const SettingsProvider: React.FC<SettingsProviderProps> = ({ children })
+             data.data.systemConfig.smartRouting.azureOpenaiEmbeddingModel || '',
+           progressiveDisclosure: data.data.systemConfig.smartRouting.progressiveDisclosure ?? false,
+           embeddingMaxTokens: data.data.systemConfig.smartRouting.embeddingMaxTokens,
++          extraToolHint: data.data.systemConfig.smartRouting.extraToolHint || '',
+         });
+       }
+       if (data.success && data.data?.systemConfig?.toolResultCompression) {
+diff --git a/frontend/src/pages/SettingsPage.tsx b/frontend/src/pages/SettingsPage.tsx
+index 35ce75f..5dd56ef 100644
+--- a/frontend/src/pages/SettingsPage.tsx
++++ b/frontend/src/pages/SettingsPage.tsx
+@@ -430,6 +430,7 @@ const SettingsPage: React.FC = () => {
+     azureOpenaiEmbeddingModel: string;
+     // Empty string = use model default; numeric string = explicit override
+     embeddingMaxTokens: string;
++    extraToolHint: string;
+   }>({
+     dbUrl: '',
+     basePacingDelayMs: '',
+@@ -444,6 +445,7 @@ const SettingsPage: React.FC = () => {
+     azureOpenaiEmbeddingDeployment: '',
+     azureOpenaiEmbeddingModel: '',
+     embeddingMaxTokens: '',
++    extraToolHint: '',
+   });
+ 
+   const [tempToolResultCompressionConfig, setTempToolResultCompressionConfig] = useState<{
+@@ -576,6 +578,7 @@ const SettingsPage: React.FC = () => {
+           smartRoutingConfig.embeddingMaxTokens != null
+             ? String(smartRoutingConfig.embeddingMaxTokens)
+             : '',
++        extraToolHint: smartRoutingConfig.extraToolHint || '',
+       });
+     }
+   }, [smartRoutingConfig]);
+@@ -800,7 +803,8 @@ const SettingsPage: React.FC = () => {
+       | 'azureOpenaiApiVersion'
+       | 'azureOpenaiEmbeddingDeployment'
+       | 'azureOpenaiEmbeddingModel'
+-      | 'embeddingMaxTokens',
++      | 'embeddingMaxTokens'
++      | 'extraToolHint',
+     value: string,
+   ) => {
+     setTempSmartRoutingConfig({
+@@ -1107,6 +1111,10 @@ const SettingsPage: React.FC = () => {
+         updates.embeddingMaxTokens = parsedTokens;
+       }
+ 
++      if (tempSmartRoutingConfig.extraToolHint !== smartRoutingConfig.extraToolHint) {
++        updates.extraToolHint = tempSmartRoutingConfig.extraToolHint;
++      }
++
+       // Save all changes in a single batch update
+       await updateSmartRoutingConfigBatch(updates);
+     } else {
+@@ -1180,6 +1188,10 @@ const SettingsPage: React.FC = () => {
+       updates.embeddingMaxTokens = parsedEmbeddingMaxTokens;
+     }
+ 
++    if (tempSmartRoutingConfig.extraToolHint !== smartRoutingConfig.extraToolHint) {
++      updates.extraToolHint = tempSmartRoutingConfig.extraToolHint;
++    }
++
+     if (Object.keys(updates).length > 0) {
+       await updateSmartRoutingConfigBatch(updates);
+     } else {
+@@ -2427,7 +2439,30 @@ const SettingsPage: React.FC = () => {
+                   })()}
+                 </p>
+               </div>
+-              
++
++              <div className="p-3 bg-gray-50 dark:bg-gray-800 rounded-md">
++                <div className="mb-2">
++                  <h3 className="font-medium text-gray-700">
++                    {t('settings.extraToolHint')}
++                  </h3>
++                  <p className="text-xs text-gray-500 mt-1">
++                    {t('settings.extraToolHintDescription')}
++                  </p>
++                </div>
++                <div className="flex items-center gap-3">
++                  <textarea
++                    value={tempSmartRoutingConfig.extraToolHint}
++                    onChange={(e) =>
++                      handleSmartRoutingConfigChange('extraToolHint', e.target.value)
++                    }
++                    placeholder={t('settings.extraToolHintPlaceholder')}
++                    className="flex-1 mt-1 block w-full py-2 px-3 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm form-textarea"
++                    disabled={loading}
++                    rows={3}
++                  />
++                </div>
++              </div>
++
+               <div
+                 className="flex items-center justify-between"
+                 style={{
+diff --git a/frontend/src/services/configService.ts b/frontend/src/services/configService.ts
+index 0a5563a..a74f080 100644
+--- a/frontend/src/services/configService.ts
++++ b/frontend/src/services/configService.ts
+@@ -30,6 +30,7 @@ export interface SystemConfig {
+     azureOpenaiApiVersion?: string;
+     azureOpenaiEmbeddingDeployment?: string;
+     embeddingMaxTokens?: number;
++    extraToolHint?: string;
+   };
+   toolResultCompression?: {
+     enabled?: boolean;
+diff --git a/locales/en.json b/locales/en.json
+index dbd12ce..99cb26b 100644
+--- a/locales/en.json
++++ b/locales/en.json
+@@ -779,6 +779,9 @@
+     "embeddingMaxTokensPlaceholder": "Empty = auto by model",
+     "embeddingMaxTokensAuto": "Auto: {{limit}} tokens (model default for {{model}})",
+     "embeddingMaxTokensOverride": "This value overrides the model default.",
++    "extraToolHint": "Smart Routing Tool Hint",
++    "extraToolHintDescription": "Text entered here is appended after the system default description. It does not replace the default description.",
++    "extraToolHintPlaceholder": "Leave empty to use the system default description",
+     "smartRoutingConfigUpdated": "Smart routing configuration updated successfully",
+     "smartRoutingRequiredFields": "Database URL is required to enable smart routing. An LLM Provider API Key is required for cloud-based providers (local LLMs usually don't require an API key, enter any value to pass the form validation)",
+     "smartRoutingValidationError": "Please fill in the required fields before enabling Smart Routing: {{fields}}",
+diff --git a/locales/fr.json b/locales/fr.json
+index 3aafaf8..cfb016c 100644
+--- a/locales/fr.json
++++ b/locales/fr.json
+@@ -771,6 +771,9 @@
+     "embeddingMaxTokensPlaceholder": "Vide = automatique selon le modèle",
+     "embeddingMaxTokensAuto": "Auto : {{limit}} tokens (valeur par défaut du modèle {{model}})",
+     "embeddingMaxTokensOverride": "Cette valeur remplace la valeur par défaut du modèle.",
++    "extraToolHint": "Indication pour les outils de routage intelligent",
++    "extraToolHintDescription": "Le texte saisi ici est ajouté après la description par défaut du système. Il ne remplace pas la description par défaut.",
++    "extraToolHintPlaceholder": "Laissez vide pour utiliser la description par défaut du système",
+     "smartRoutingRequiredFields": "L'URL de la base de données est requise pour activer le routage intelligent. Une clé API du fournisseur LLM est requise pour les fournisseurs cloud (les LLM locaux ne nécessitent généralement pas de clé API, entrez n'importe quelle valeur pour passer la validation du formulaire)",
+     "smartRoutingValidationError": "Veuillez remplir les champs obligatoires avant d'activer le routage intelligent : {{fields}}",
+     "smartRoutingWorkflow": "Flux de travail",
+diff --git a/locales/tr.json b/locales/tr.json
+index 59fded2..9594516 100644
+--- a/locales/tr.json
++++ b/locales/tr.json
+@@ -770,6 +770,9 @@
+     "embeddingMaxTokensPlaceholder": "Boş = modele göre otomatik",
+     "embeddingMaxTokensAuto": "Otomatik: {{limit}} token ({{model}} model varsayılanı)",
+     "embeddingMaxTokensOverride": "Bu değer model varsayılanını geçersiz kılar.",
++    "extraToolHint": "Akıllı Yönlendirme araç ipucu",
++    "extraToolHintDescription": "Buraya girilen metin, sistem varsayılan açıklamasının sonuna eklenir. Varsayılan açıklamanın yerini almaz.",
++    "extraToolHintPlaceholder": "Sistem varsayılan açıklamasını kullanmak için boş bırakın",
+     "smartRoutingRequiredFields": "Akıllı yönlendirmeyi etkinleştirmek için Veritabanı URL'si gereklidir. LLM Sağlayıcı API Anahtarı yalnızca bulut tabanlı sağlayıcılar için gereklidir (yerel LLM'ler genellikle API anahtarı gerektirmez, form doğrulamasını geçmek için herhangi bir değer girin)",
+     "smartRoutingValidationError": "Akıllı Yönlendirmeyi etkinleştirmeden önce lütfen gerekli alanları doldurun: {{fields}}",
+     "smartRoutingWorkflow": "İş Akışı",
+diff --git a/locales/zh.json b/locales/zh.json
+index ed3fabb..04c7233 100644
+--- a/locales/zh.json
++++ b/locales/zh.json
+@@ -782,6 +782,9 @@
+     "embeddingMaxTokensPlaceholder": "留空 = 自动（按模型）",
+     "embeddingMaxTokensAuto": "自动：{{limit}} tokens（{{model}} 的模型默认值）",
+     "embeddingMaxTokensOverride": "此值将覆盖模型默认值。",
++    "extraToolHint": "智能路由工具补充说明",
++    "extraToolHintDescription": "这里填的内容会追加在系统默认描述的后面，不会替换默认描述。",
++    "extraToolHintPlaceholder": "留空则使用系统默认描述",
+     "smartRoutingConfigUpdated": "智能路由配置更新成功",
+     "smartRoutingRequiredFields": "启用智能路由需要填写数据库连接地址。LLM 提供商 API 密钥仅在使用云端提供商时才需要（本地 LLM 通常不需要 API 密钥，可输入任意值通过表单验证）",
+     "smartRoutingValidationError": "启用智能路由前请先填写必要字段：{{fields}}",
+diff --git a/src/controllers/serverController.ts b/src/controllers/serverController.ts
+index 10e46e9..f0f349c 100644
+--- a/src/controllers/serverController.ts
++++ b/src/controllers/serverController.ts
+@@ -332,6 +332,11 @@ export const getAllSettings = async (req: Request, res: Response): Promise<void>
+       systemConfig.smartRouting.dbUrl = dbUrlEnv ? '${DB_URL}' : '';
+     }
+ 
++    // Backfill newer optional fields if missing
++    if (systemConfig.smartRouting.extraToolHint === undefined) {
++      systemConfig.smartRouting.extraToolHint = '';
++    }
++
+     if (!systemConfig.toolResultCompression) {
+       systemConfig.toolResultCompression = {
+         enabled: false,
+@@ -1437,7 +1442,8 @@ export const updateSystemConfig = async (req: Request, res: Response): Promise<v
+         typeof smartRouting.azureOpenaiEmbeddingDeployment === 'string' ||
+         typeof smartRouting.progressiveDisclosure === 'boolean' ||
+         typeof smartRouting.embeddingMaxTokens === 'number' ||
+-        smartRouting.embeddingMaxTokens === null);
++        smartRouting.embeddingMaxTokens === null ||
++        typeof smartRouting.extraToolHint === 'string');
+ 
+     const hasToolResultCompressionUpdate =
+       toolResultCompression &&
+@@ -1542,6 +1548,7 @@ export const updateSystemConfig = async (req: Request, res: Response): Promise<v
+           azureOpenaiApiKey: '',
+           azureOpenaiApiVersion: '',
+           azureOpenaiEmbeddingDeployment: '',
++          extraToolHint: '',
+         },
+         toolResultCompression: {
+           enabled: false,
+@@ -1595,6 +1602,7 @@ export const updateSystemConfig = async (req: Request, res: Response): Promise<v
+         azureOpenaiApiKey: '',
+         azureOpenaiApiVersion: '',
+         azureOpenaiEmbeddingDeployment: '',
++        extraToolHint: '',
+       };
+     }
+ 
+diff --git a/src/services/smartRoutingService.ts b/src/services/smartRoutingService.ts
+index 14162ab..fd89fba 100644
+--- a/src/services/smartRoutingService.ts
++++ b/src/services/smartRoutingService.ts
+@@ -147,22 +147,28 @@ export const buildSmartRoutingMetaTools = (
+   scopeDescription: string,
+   serversList: string,
+   progressiveDisclosure: boolean,
++  extraHint?: string,
+ ): any[] => {
+   const tools: any[] = [];
+ 
++  const appendExtraHint = (description: string): string => {
++    if (!extraHint) return description;
++    return `${description}\n\n${extraHint}`;
++  };
++
+   if (progressiveDisclosure) {
+     // Progressive disclosure mode: search_tools returns minimal info,
+     // describe_tool provides full schema
+     tools.push(
+       {
+         name: 'search_tools',
+-        description: `STEP 1 of 3: Use this tool FIRST to discover and search for relevant tools across ${scopeDescription}. Returns tool names and descriptions only - use describe_tool to get full parameter details before calling.
++        description: appendExtraHint(`STEP 1 of 3: Use this tool FIRST to discover and search for relevant tools across ${scopeDescription}. Returns tool names and descriptions only - use describe_tool to get full parameter details before calling.
+ 
+ For optimal results, use specific queries matching your exact needs. Call this tool multiple times with different queries for different parts of complex tasks. Example queries: "image generation tools", "code review tools", "data analysis", "translation capabilities", etc. Results are sorted by relevance using vector similarity.
+ 
+ Workflow: search_tools → describe_tool (for parameter details) → call_tool (to execute)
+ 
+-Available servers: ${serversList}`,
++Available servers: ${serversList}`),
+         inputSchema: {
+           type: 'object',
+           properties: {
+@@ -206,8 +212,9 @@ Available servers: ${serversList}`,
+       },
+       {
+         name: 'call_tool',
+-        description:
++        description: appendExtraHint(
+           "STEP 3 of 3: Use this tool AFTER describe_tool to actually execute/invoke any tool you found. This is the execution step.\n\nWorkflow: search_tools → describe_tool → call_tool with the chosen tool name and required arguments.\n\nIMPORTANT: Always use describe_tool first to get the tool's inputSchema before invoking to ensure you provide the correct arguments.",
++        ),
+         inputSchema: {
+           type: 'object',
+           properties: {
+@@ -235,13 +242,13 @@ Available servers: ${serversList}`,
+     tools.push(
+       {
+         name: 'search_tools',
+-        description: `STEP 1 of 2: Use this tool FIRST to discover and search for relevant tools across ${scopeDescription}. This tool and call_tool work together as a two-step process: 1) search_tools to find what you need, 2) call_tool to execute it.
++        description: appendExtraHint(`STEP 1 of 2: Use this tool FIRST to discover and search for relevant tools across ${scopeDescription}. This tool and call_tool work together as a two-step process: 1) search_tools to find what you need, 2) call_tool to execute it.
+ 
+ For optimal results, use specific queries matching your exact needs. Call this tool multiple times with different queries for different parts of complex tasks. Example queries: "image generation tools", "code review tools", "data analysis", "translation capabilities", etc. Results are sorted by relevance using vector similarity.
+ 
+ After finding relevant tools, you MUST use the call_tool to actually execute them. The search_tools only finds tools - it doesn't execute them.
+ 
+-Available servers: ${serversList}`,
++Available servers: ${serversList}`),
+         inputSchema: {
+           type: 'object',
+           properties: {
+@@ -266,8 +273,9 @@ Available servers: ${serversList}`,
+       },
+       {
+         name: 'call_tool',
+-        description:
++        description: appendExtraHint(
+           "STEP 2 of 2: Use this tool AFTER search_tools to actually execute/invoke any tool you found. This is the execution step - search_tools finds tools, call_tool runs them.\n\nWorkflow: search_tools → examine results → call_tool with the chosen tool name and required arguments.\n\nIMPORTANT: Always check the tool's inputSchema from search_tools results before invoking to ensure you provide the correct arguments. The search results will show you exactly what parameters each tool expects.",
++        ),
+         inputSchema: {
+           type: 'object',
+           properties: {
+@@ -359,7 +367,12 @@ export const getSmartRoutingMetaToolDefinitions = async (
+     group,
+     smartRoutingConfig,
+   );
+-  return buildSmartRoutingMetaTools(scopeDescription, serversList, progressiveDisclosure);
++  return buildSmartRoutingMetaTools(
++    scopeDescription,
++    serversList,
++    progressiveDisclosure,
++    smartRoutingConfig.extraToolHint,
++  );
+ };
+ 
+ /**
+@@ -378,7 +391,12 @@ export const getSmartRoutingTools = async (
+   );
+ 
+   return {
+-    tools: buildSmartRoutingMetaTools(scopeDescription, serversList, progressiveDisclosure),
++    tools: buildSmartRoutingMetaTools(
++      scopeDescription,
++      serversList,
++      progressiveDisclosure,
++      smartRoutingConfig.extraToolHint,
++    ),
+   };
+ };
+ 
+diff --git a/src/utils/smartRouting.ts b/src/utils/smartRouting.ts
+index d26e18b..3342780 100644
+--- a/src/utils/smartRouting.ts
++++ b/src/utils/smartRouting.ts
+@@ -43,6 +43,12 @@ export interface SmartRoutingConfig {
+    * Default: 'names' for backward compatibility.
+    */
+   serverDescriptionMode?: 'names' | 'full';
++  /**
++   * Optional extra text appended to the default descriptions of the smart routing
++   * meta-tools (search_tools and call_tool). When omitted, the original default
++   * descriptions are used unchanged.
++   */
++  extraToolHint?: string;
+   /**
+    * Maximum number of tokens allowed when truncating tool descriptions before generating
+    * embeddings. Overrides the per-model default from getModelDefaultTokenLimit().
+@@ -200,6 +206,14 @@ export async function getSmartRoutingConfig(): Promise<SmartRoutingConfig> {
+       },
+     ),
+ 
++    // Optional extra hint appended to meta-tool descriptions; pass through as-is
++    extraToolHint: getConfigValue(
++      [process.env.SMART_ROUTING_EXTRA_TOOL_HINT],
++      smartRoutingSettings.extraToolHint,
++      '',
++      (value: any) => String(value || ''),
++    ),
++
+     // Maximum tokens for text truncation before generating embeddings.
+     // undefined means "use the per-model default" (see getModelDefaultTokenLimit).
+     embeddingMaxTokens: getConfigValue<number | undefined>(
+diff --git a/tests/services/smartRoutingService-metatools.test.ts b/tests/services/smartRoutingService-metatools.test.ts
+index c008f98..2b96b5a 100644
+--- a/tests/services/smartRoutingService-metatools.test.ts
++++ b/tests/services/smartRoutingService-metatools.test.ts
+@@ -109,6 +109,29 @@ describe('buildSmartRoutingMetaTools', () => {
+     expect(tools.map((t) => t.name)).toEqual(['search_tools', 'describe_tool', 'call_tool']);
+   });
+ 
++  it('appends extra hint to search_tools and call_tool when provided', () => {
++    const tools = buildSmartRoutingMetaTools(
++      'all available servers',
++      'srv-a, srv-b',
++      false,
++      'Follow this custom instruction.',
++    );
++    const search = tools.find((t) => t.name === 'search_tools')!;
++    const call = tools.find((t) => t.name === 'call_tool')!;
++    expect(search.description).toContain('Follow this custom instruction.');
++    expect(call.description).toContain('Follow this custom instruction.');
++    expect(search.description).toContain('STEP 1 of 2');
++    expect(call.description).toContain('STEP 2 of 2');
++  });
++
++  it('does not append extra hint when it is empty', () => {
++    const tools = buildSmartRoutingMetaTools('all available servers', 'srv-a, srv-b', false);
++    const search = tools.find((t) => t.name === 'search_tools')!;
++    const call = tools.find((t) => t.name === 'call_tool')!;
++    expect(search.description).not.toContain('Follow this custom instruction.');
++    expect(call.description).not.toContain('Follow this custom instruction.');
++  });
++
+   it('embeds the scope description and server list into search_tools', () => {
+     const tools = buildSmartRoutingMetaTools('servers in the "x" group', 'srv-a', false);
+     const search = tools.find((t) => t.name === 'search_tools')!;

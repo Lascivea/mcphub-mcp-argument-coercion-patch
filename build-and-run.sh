@@ -46,6 +46,18 @@ esac
 [[ -f "$PATCH_COMPOSE" ]] || { echo "找不到补丁 compose：$PATCH_COMPOSE" >&2; exit 1; }
 [[ -f "$REPO_ROOT/Dockerfile" ]] || { echo "找不到 MCPHub Dockerfile：$REPO_ROOT/Dockerfile，请设置 MCPHUB_SOURCE_DIR" >&2; exit 1; }
 
+# 自动应用当前仓库下所有 .patch 文件；若已应用则跳过
+for patch in "$SCRIPT_DIR"/*.patch; do
+  [[ -f "$patch" ]] || continue
+  patch_name=$(basename "$patch")
+  if git -C "$REPO_ROOT" apply --check "$patch" >/dev/null 2>&1; then
+    echo "应用补丁：$patch_name"
+    git -C "$REPO_ROOT" apply "$patch"
+  else
+    echo "补丁已应用或跳过：$patch_name"
+  fi
+done
+
 echo "构建补丁镜像：$IMAGE_TAG"
 docker build --platform "$PLATFORM" --tag "$IMAGE_TAG" "$REPO_ROOT"
 
